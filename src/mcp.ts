@@ -1,6 +1,5 @@
 import type { Env } from "./types/env";
-import { handleHello } from "./routes/hello";
-import { handleApi } from "./routes/api";
+import { toolHandlers, toolsList } from "./mcp-tools/registry";
 
 type JsonRpcId = string | number | null;
 
@@ -32,37 +31,6 @@ type ToolsCallParams = {
 const SERVER_NAME = "cf-worker-mcp-template";
 const SERVER_VERSION = "0.1.0";
 const PROTOCOL_VERSION = "2024-11-05";
-
-const toolsList = [
-  {
-    name: "hello",
-    description: "Return greeting and time. Optional query param: name.",
-    inputSchema: {
-      type: "object",
-      properties: {
-        name: { type: "string" },
-      },
-      required: [],
-      additionalProperties: false,
-    },
-  },
-  {
-    name: "api",
-    description: "Echo method and query. Optional query object and method.",
-    inputSchema: {
-      type: "object",
-      properties: {
-        method: { type: "string" },
-        query: {
-          type: "object",
-          additionalProperties: { type: "string" },
-        },
-      },
-      required: [],
-      additionalProperties: false,
-    },
-  },
-] as const;
 
 function jsonRpcResult(id: JsonRpcId, result: unknown): JsonRpcResponse {
   return { jsonrpc: "2.0", id, result };
@@ -103,33 +71,18 @@ async function handleToolsCall(
   env: Env
 ): Promise<unknown> {
   const name = params.name;
-  const args = params.arguments ?? {};
+  const rawArgs = params.arguments;
+  const args =
+    rawArgs && typeof rawArgs === "object"
+      ? (rawArgs as Record<string, unknown>)
+      : {};
 
-  if (name === "hello") {
-    const url = new URL("https://mcp.local/hello");
-    if (typeof args.name === "string") {
-      url.searchParams.set("name", args.name);
-    }
-    const request = new Request(url.toString(), { method: "GET" });
-    const response = await handleHello(request, env);
-    return responseToToolContent(response);
-  }
+  if (!name) throw new Error("Unknown tool: ");
+  const handler = toolHandlers[name];
+  if (!handler) throw new Error(`Unknown tool: ${name}`);
 
-  if (name === "api") {
-    const url = new URL("https://mcp.local/api");
-    const query = args.query;
-    if (query && typeof query === "object") {
-      for (const [key, value] of Object.entries(query)) {
-        if (typeof value === "string") url.searchParams.set(key, value);
-      }
-    }
-    const method = typeof args.method === "string" ? args.method : "GET";
-    const request = new Request(url.toString(), { method });
-    const response = await handleApi(request, env);
-    return responseToToolContent(response);
-  }
-
-  throw new Error(`Unknown tool: ${name ?? ""}`);
+  const response = await handler(args, env);
+  return responseToToolContent(response);
 }
 
 function buildSseResponse(payload: JsonRpcResponse): Response {

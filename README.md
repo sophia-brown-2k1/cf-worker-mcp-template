@@ -22,6 +22,18 @@ npm run deploy
 - Nếu gửi header `Accept: text/event-stream` sẽ trả về SSE.
 - Tools hiện có: `hello`, `api`.
 
+### MCP Tools Skeleton
+
+- Registry: `src/mcp-tools/registry.ts`
+- Scaffold tool: `npm run tool:scaffold <tool-name> "Description here"`
+- Tool file output: `src/mcp-tools/<tool-name>.ts`
+
+Ví dụ scaffold:
+
+```bash
+npm run tool:scaffold ping "Return pong"
+```
+
 Ví dụ initialize:
 
 ```json
@@ -70,6 +82,10 @@ Bật `routes` trong `wrangler.toml` và đảm bảo zone nằm trong Cloudflar
 ```
 src/
   index.ts
+  mcp-tools/
+    registry.ts
+    hello.ts
+    api.ts
   routes/
     hello.ts
     api.ts
@@ -87,6 +103,10 @@ src/
     env.d.ts
   do/
     Counter.ts
+tools/
+  scaffold-tool.mjs
+  template/
+    tool.ts
 ```
 
 ## Ghi chú
