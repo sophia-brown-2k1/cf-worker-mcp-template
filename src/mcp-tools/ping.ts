@@ -18,5 +18,5 @@ export const handlePingTool: ToolHandler = async (
   _args: Record<string, unknown>,
   _env: Env
 ) => {
-  return "Ping successful!";
+  return new Response("Ping successful!", { status: 200 });
 };

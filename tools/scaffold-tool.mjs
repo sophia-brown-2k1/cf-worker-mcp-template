@@ -51,18 +51,16 @@ async function ensureRegistryMarkers(content) {
 }
 
 function insertBetween(content, startMarker, endMarker, insertLine) {
-  const start = content.indexOf(startMarker);
-  const end = content.indexOf(endMarker);
-  if (start === -1 || end === -1 || end < start) {
+  const lines = content.split("\n");
+  const startIndex = lines.findIndex((line) => line.includes(startMarker));
+  const endIndex = lines.findIndex((line) => line.includes(endMarker));
+  if (startIndex === -1 || endIndex === -1 || endIndex < startIndex) {
     throw new Error(`Invalid registry markers: ${startMarker} / ${endMarker}`);
   }
-  const before = content.slice(0, end);
-  if (before.includes(insertLine)) return content;
-  const insertionPoint = end;
-  const prefix = content.slice(0, insertionPoint);
-  const suffix = content.slice(insertionPoint);
-  const insert = `${insertLine}\n`;
-  return `${prefix}${insert}${suffix}`;
+  const exists = lines.some((line) => line.trim() === insertLine.trim());
+  if (exists) return content;
+  lines.splice(endIndex, 0, insertLine);
+  return lines.join("\n");
 }
 
 async function main() {
@@ -105,7 +103,7 @@ async function main() {
     listLine
   );
 
-  const handlerLine = `  ${toolName}: ${toolHandlerName},`;
+  const handlerLine = `  "${toolName}": ${toolHandlerName},`;
   registry = insertBetween(
     registry,
     "TOOL_REGISTER_START",
