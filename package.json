@@ -1,5 +1,5 @@
 {
-  "name": "cf-worker-skeleton",
+  "name": "cf-worker-mcp-template",
   "version": "0.1.0",
   "private": true,
   "type": "module",

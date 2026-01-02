@@ -1,4 +1,3 @@
-
 import type { Env } from "./types/env";
 import { isPreflight, preflightResponse } from "./utils/cors";
 import { json, text } from "./utils/response";
@@ -9,9 +8,14 @@ import { handleD1 } from "./routes/d1";
 import { handleR2 } from "./routes/r2";
 import { handleCounter } from "./routes/counter";
 import { Counter } from "./do/Counter";
+import { handleMcp } from "./mcp";
 
 export default {
-  async fetch(request: Request, env: Env, _ctx: ExecutionContext): Promise<Response> {
+  async fetch(
+    request: Request,
+    env: Env,
+    _ctx: ExecutionContext
+  ): Promise<Response> {
     if (isPreflight(request)) return preflightResponse();
 
     const url = new URL(request.url);
@@ -27,13 +31,14 @@ export default {
           "/d1",
           "/r2 (GET|POST)",
           "/counter",
-          "/counter/incr"
-        ]
+          "/counter/incr",
+        ],
       });
     }
 
     if (path.startsWith("/hello")) return handleHello(request, env);
     if (path.startsWith("/api")) return handleApi(request, env);
+    if (path.startsWith("/mcp")) return handleMcp(request, env);
     if (path.startsWith("/kv")) return handleKV(request, env);
     if (path.startsWith("/d1")) return handleD1(request, env);
     if (path.startsWith("/r2")) return handleR2(request, env);
@@ -50,5 +55,5 @@ export default {
 
   // Khai báo lớp Durable Object để bundler biết (nếu dùng)
   // (wrangler.toml cần bật [durable_objects] bindings)
-  Counter
+  Counter,
 };
