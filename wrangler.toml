@@ -1,0 +1,30 @@
+
+name = "cf-worker-skeleton"
+main = "src/index.ts"
+compatibility_date = "2025-10-01"
+workers_dev = true
+
+[vars]
+GREETING = "Xin chào từ Cloudflare Workers"
+
+# === Bindings (bật lên khi bạn đã tạo tài nguyên) ===
+# [[kv_namespaces]]
+# binding = "KV"
+# id = "REPLACE_WITH_KV_ID"
+
+# [[d1_databases]]
+# binding = "DB"
+# database_name = "REPLACE_WITH_DB_NAME"
+# database_id = "REPLACE_WITH_DB_ID"
+
+# [[r2_buckets]]
+# binding = "BUCKET"
+# bucket_name = "REPLACE_WITH_BUCKET_NAME"
+
+# [durable_objects]
+# bindings = [ { name = "COUNTER", class_name = "Counter" } ]
+
+# [[triggers.crons]]
+# schedule = "0 */6 * * *" # ví dụ: chạy mỗi 6 giờ
+
+# routes = [ { pattern = "api.example.com/*", zone_name = "example.com" } ]
