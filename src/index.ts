@@ -6,9 +6,11 @@ import { handleApi } from "./routes/api";
 import { handleKV } from "./routes/kv";
 import { handleD1 } from "./routes/d1";
 import { handleR2 } from "./routes/r2";
+import { handleRequest } from "./routes/request";
 import { handleCounter } from "./routes/counter";
 import { Counter } from "./do/Counter";
 import { handleMcp } from "./mcp";
+import { handleOpenAI } from "./routes/openai";
 
 export default {
   async fetch(
@@ -27,11 +29,14 @@ export default {
         routes: [
           "/hello",
           "/api",
+          "/request (POST)",
           "/kv (GET|POST?key=...)",
           "/d1",
           "/r2 (GET|POST)",
           "/counter",
           "/counter/incr",
+          "/v1/models (GET)",
+          "/v1/embeddings (POST)",
         ],
       });
     }
@@ -39,6 +44,10 @@ export default {
     if (path.startsWith("/hello")) return handleHello(request, env);
     if (path.startsWith("/api")) return handleApi(request, env);
     if (path.startsWith("/mcp")) return handleMcp(request, env);
+    if (path.startsWith("/v1") || path.startsWith("/openai/v1")) {
+      return handleOpenAI(request, env);
+    }
+    if (path.startsWith("/request")) return handleRequest(request, env);
     if (path.startsWith("/kv")) return handleKV(request, env);
     if (path.startsWith("/d1")) return handleD1(request, env);
     if (path.startsWith("/r2")) return handleR2(request, env);

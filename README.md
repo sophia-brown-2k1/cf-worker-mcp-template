@@ -16,6 +16,12 @@ npm run dev
 npm run deploy
 ```
 
+## CI Deploy (GitHub Actions)
+
+- Tao Cloudflare user "github-bot" va tao API Token tu user nay de Dashboard hien deployer la "github-bot".
+- Luu GitHub Actions secrets: CF_API_TOKEN va CF_ACCOUNT_ID.
+- Workflow deploy: .github/workflows/deploy.yml.
+
 ## MCP (Streamable HTTP)
 
 - Endpoint: `POST /mcp`
@@ -65,12 +71,51 @@ Call tool:
 }
 ```
 
-### Bật các tích hợp (KV/D1/R2/DO)
+## OpenAI-compatible Embeddings API
+
+- Endpoints:
+  - `GET /v1/models`
+  - `POST /v1/embeddings`
+- Alias route cũng hỗ trợ: `/openai/v1/models`, `/openai/v1/embeddings`
+- Nếu đặt `OPENAI_API_KEY`, request phải gửi `Authorization: Bearer <key>`.
+
+Ví dụ gọi embedding:
+
+```bash
+curl -X POST http://127.0.0.1:8787/v1/embeddings \
+  -H "content-type: application/json" \
+  -H "authorization: Bearer <OPENAI_API_KEY>" \
+  -d '{
+    "model": "text-embedding-3-small",
+    "input": ["xin chao", "cloudflare workers"]
+  }'
+```
+
+Ví dụ với OpenAI SDK:
+
+```ts
+import OpenAI from "openai";
+
+const client = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+  baseURL: "http://127.0.0.1:8787/v1",
+});
+
+const res = await client.embeddings.create({
+  model: "text-embedding-3-small",
+  input: "hello from workers",
+});
+
+console.log(res.data[0].embedding.length);
+```
+
+### Bật các tích hợp (KV/D1/R2/DO/AI)
 
 - **KV**: `wrangler kv namespace create KV` → cập nhật `wrangler.toml` với `id` trả về.
 - **D1**: `wrangler d1 create mydb` → thêm binding trong `wrangler.toml`. Tạo bảng/migration: `wrangler d1 execute mydb --file schema.sql`.
 - **R2**: Tạo bucket trong Dashboard, rồi thêm binding với `bucket_name`.
 - **Durable Objects**: bật mục `[durable_objects]` và binding `COUNTER`.
+- **Workers AI**: bật block `[ai]` với `binding = "AI"` để dùng `/v1/embeddings`.
 - **Cron**: bỏ comment khối `triggers.crons` với lịch `CRON` mong muốn.
 
 ### Routes vào domain riêng
@@ -89,6 +134,7 @@ src/
   routes/
     hello.ts
     api.ts
+    openai.ts
     kv.ts
     d1.ts
     r2.ts

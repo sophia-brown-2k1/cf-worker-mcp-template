@@ -1,6 +1,8 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import { json } from "../src/utils/response";
 import { handleMcp } from "../src/mcp";
+import { handleRequest } from "../src/routes/request";
+import { handleOpenAI } from "../src/routes/openai";
 
 type MockKv = {
   get: (key: string) => Promise<string | null>;
@@ -44,6 +46,10 @@ describe("response.json", () => {
 });
 
 describe("mcp", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it("tools/call api echoes query and method", async () => {
     const env = { GREETING: "Xin chao" } as never;
     const request = buildMcpRequest({
@@ -183,5 +189,173 @@ describe("mcp", () => {
     };
     expect(payload.result.content[0].type).toBe("text");
     expect(payload.result.content[0].text).toContain("Kilo");
+  });
+
+  it("tools/call http-request performs outbound request", async () => {
+    const env = { GREETING: "Xin chao" } as never;
+    const fetchMock = vi.fn(async () => {
+      return new Response("ok", {
+        status: 200,
+        headers: { "x-test": "1" },
+      });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const request = buildMcpRequest({
+      jsonrpc: "2.0",
+      id: "http-1",
+      method: "tools/call",
+      params: {
+        name: "http-request",
+        arguments: {
+          url: "https://example.test/echo",
+          method: "POST",
+          headers: { "x-req": "1" },
+          query: { q: "v" },
+          body: "hello",
+        },
+      },
+    });
+
+    const response = await handleMcp(request, env);
+    expect(response.status).toBe(200);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const payload = (await response.json()) as {
+      result: { content: Array<{ type: string; text: string }> };
+    };
+    const body = JSON.parse(payload.result.content[0].text) as {
+      request: { url: string; method: string };
+      response: {
+        status: number;
+        ok: boolean;
+        headers: Record<string, string>;
+        body: string;
+      };
+    };
+    expect(body.request.method).toBe("POST");
+    expect(body.request.url).toContain("q=v");
+    expect(body.response.status).toBe(200);
+    expect(body.response.ok).toBe(true);
+    expect(body.response.headers["x-test"]).toBe("1");
+    expect(body.response.body).toBe("ok");
+  });
+});
+
+describe("request route", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("POST /request performs outbound request", async () => {
+    const fetchMock = vi.fn(async () => {
+      return new Response("pong", {
+        status: 201,
+        headers: { "content-type": "text/plain" },
+      });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const request = new Request("https://example.test/request", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        url: "https://example.test/ping",
+        method: "GET",
+      }),
+    });
+
+    const response = await handleRequest(request, {} as never);
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as {
+      request: { url: string; method: string };
+      response: {
+        status: number;
+        ok: boolean;
+        headers: Record<string, string>;
+        body: string;
+      };
+    };
+    expect(body.request.method).toBe("GET");
+    expect(body.response.status).toBe(201);
+    expect(body.response.body).toBe("pong");
+  });
+
+  it("POST /request rejects invalid payload", async () => {
+    const request = new Request("https://example.test/request", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(null),
+    });
+
+    const response = await handleRequest(request, {} as never);
+    expect(response.status).toBe(400);
+  });
+});
+
+describe("openai-compatible embeddings route", () => {
+  it("POST /v1/embeddings returns OpenAI shape", async () => {
+    const aiRunMock = vi.fn(async () => ({
+      shape: [1, 3],
+      data: [[0.11, 0.22, 0.33]],
+    }));
+
+    const request = new Request("https://example.test/v1/embeddings", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        model: "text-embedding-3-small",
+        input: "xin chao",
+      }),
+    });
+
+    const response = await handleOpenAI(
+      request,
+      { GREETING: "Xin chao", AI: { run: aiRunMock } } as never
+    );
+
+    expect(response.status).toBe(200);
+    expect(aiRunMock).toHaveBeenCalledWith("@cf/google/embeddinggemma-300m", {
+      text: "xin chao",
+    });
+
+    const payload = (await response.json()) as {
+      object: string;
+      model: string;
+      data: Array<{ object: string; index: number; embedding: number[] }>;
+    };
+
+    expect(payload.object).toBe("list");
+    expect(payload.model).toBe("text-embedding-3-small");
+    expect(payload.data[0].object).toBe("embedding");
+    expect(payload.data[0].index).toBe(0);
+    expect(payload.data[0].embedding).toEqual([0.11, 0.22, 0.33]);
+  });
+
+  it("rejects missing API key when OPENAI_API_KEY is set", async () => {
+    const request = new Request("https://example.test/v1/embeddings", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        model: "text-embedding-3-small",
+        input: "xin chao",
+      }),
+    });
+
+    const response = await handleOpenAI(
+      request,
+      {
+        GREETING: "Xin chao",
+        OPENAI_API_KEY: "secret-key",
+        AI: {
+          run: async () => ({ shape: [1, 1], data: [[1]] }),
+        },
+      } as never
+    );
+
+    expect(response.status).toBe(401);
+    const payload = (await response.json()) as {
+      error: { message: string; code: string };
+    };
+    expect(payload.error.code).toBe("invalid_api_key");
   });
 });

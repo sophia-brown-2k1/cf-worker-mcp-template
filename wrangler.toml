@@ -1,4 +1,3 @@
-
 name = "cf-worker-skeleton"
 main = "src/index.ts"
 compatibility_date = "2025-10-01"
@@ -6,11 +5,16 @@ workers_dev = true
 
 [vars]
 GREETING = "Xin chào từ Cloudflare Workers"
+# EMBEDDING_MODEL = "@cf/google/embeddinggemma-300m"
+# OPENAI_API_KEY = "REPLACE_WITH_STRONG_KEY" # Khuyến nghị đặt bằng secret thay vì vars
+
+[ai]
+binding = "AI"
 
 # === Bindings (bật lên khi bạn đã tạo tài nguyên) ===
-[[kv_namespaces]]
-binding = "KV"
-id = "166a9a57cf8245af84bce1b94723090d"
+# [[kv_namespaces]]
+# binding = "KV"
+# id = "166a9a57cf8245af84bce1b94723090d"
 
 # [[d1_databases]]
 # binding = "DB"
