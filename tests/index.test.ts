@@ -36,6 +36,23 @@ function buildMcpRequest(body: unknown) {
   });
 }
 
+function decodeEmbeddingBase64ToFloat32(value: string): number[] {
+  const binary = atob(value);
+  const bytes = new Uint8Array(binary.length);
+
+  for (let i = 0; i < binary.length; i += 1) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+
+  const view = new DataView(bytes.buffer);
+  const numbers: number[] = [];
+  for (let i = 0; i < bytes.length; i += 4) {
+    numbers.push(view.getFloat32(i, true));
+  }
+
+  return numbers;
+}
+
 describe("response.json", () => {
   it("trả về content-type application/json", async () => {
     const resp = json({ ok: true });
@@ -329,6 +346,70 @@ describe("openai-compatible embeddings route", () => {
     expect(payload.data[0].object).toBe("embedding");
     expect(payload.data[0].index).toBe(0);
     expect(payload.data[0].embedding).toEqual([0.11, 0.22, 0.33]);
+  });
+
+  it("POST /v1/embeddings supports encoding_format=base64", async () => {
+    const aiRunMock = vi.fn(async () => ({
+      shape: [1, 3],
+      data: [[0.25, -1.5, 3.75]],
+    }));
+
+    const request = new Request("https://example.test/v1/embeddings", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        model: "text-embedding-3-small",
+        input: "xin chao",
+        encoding_format: "base64",
+      }),
+    });
+
+    const response = await handleOpenAI(
+      request,
+      { GREETING: "Xin chao", AI: { run: aiRunMock } } as never
+    );
+
+    expect(response.status).toBe(200);
+    const payload = (await response.json()) as {
+      data: Array<{ embedding: string }>;
+    };
+
+    expect(typeof payload.data[0].embedding).toBe("string");
+    const decoded = decodeEmbeddingBase64ToFloat32(payload.data[0].embedding);
+    expect(decoded.length).toBe(3);
+    expect(decoded[0]).toBeCloseTo(0.25, 5);
+    expect(decoded[1]).toBeCloseTo(-1.5, 5);
+    expect(decoded[2]).toBeCloseTo(3.75, 5);
+  });
+
+  it("rejects unsupported encoding_format", async () => {
+    const request = new Request("https://example.test/v1/embeddings", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        model: "text-embedding-3-small",
+        input: "xin chao",
+        encoding_format: "int8",
+      }),
+    });
+
+    const response = await handleOpenAI(
+      request,
+      {
+        GREETING: "Xin chao",
+        AI: {
+          run: async () => ({ shape: [1, 1], data: [[1]] }),
+        },
+      } as never
+    );
+
+    expect(response.status).toBe(400);
+    const payload = (await response.json()) as {
+      error: { param: string; message: string };
+    };
+    expect(payload.error.param).toBe("encoding_format");
+    expect(payload.error.message).toContain("float");
+    expect(payload.error.message).toContain("base64");
   });
 
   it("rejects missing API key when OPENAI_API_KEY is set", async () => {

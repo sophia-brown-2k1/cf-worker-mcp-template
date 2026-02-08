@@ -20,6 +20,8 @@ type EmbeddingResult = {
   data?: unknown;
 };
 
+type EmbeddingEncodingFormat = "float" | "base64";
+
 function openAiError(
   status: number,
   message: string,
@@ -150,6 +152,25 @@ function normalizeInput(input: unknown): string[] | Response {
   return input as string[];
 }
 
+function resolveEncodingFormat(
+  value: unknown
+): EmbeddingEncodingFormat | Response {
+  if (value === undefined || value === null) {
+    return "float";
+  }
+
+  if (value === "float" || value === "base64") {
+    return value;
+  }
+
+  return openAiError(
+    400,
+    "encoding_format must be either 'float' or 'base64'.",
+    "invalid_request_error",
+    "encoding_format"
+  );
+}
+
 function extractEmbeddings(result: unknown): number[][] | null {
   if (typeof result !== "object" || result === null) return null;
 
@@ -170,6 +191,29 @@ function extractEmbeddings(result: unknown): number[][] | null {
   }
 
   return vectors;
+}
+
+function toBase64(bytes: Uint8Array): string {
+  let binary = "";
+  const chunkSize = 0x8000;
+
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    const chunk = bytes.subarray(i, i + chunkSize);
+    binary += String.fromCharCode(...chunk);
+  }
+
+  return btoa(binary);
+}
+
+function encodeEmbeddingToBase64(embedding: number[]): string {
+  const buffer = new ArrayBuffer(embedding.length * 4);
+  const view = new DataView(buffer);
+
+  for (let i = 0; i < embedding.length; i += 1) {
+    view.setFloat32(i * 4, embedding[i], true);
+  }
+
+  return toBase64(new Uint8Array(buffer));
 }
 
 function handleModels(env: Env): Response {
@@ -259,15 +303,8 @@ export async function handleOpenAI(
   }
 
   const payload = body as Record<string, unknown>;
-  const encodingFormat = payload.encoding_format;
-  if (encodingFormat !== undefined && encodingFormat !== "float") {
-    return openAiError(
-      400,
-      "Only encoding_format='float' is supported.",
-      "invalid_request_error",
-      "encoding_format"
-    );
-  }
+  const encodingFormat = resolveEncodingFormat(payload.encoding_format);
+  if (encodingFormat instanceof Response) return encodingFormat;
 
   const normalizedInput = normalizeInput(payload.input);
   if (normalizedInput instanceof Response) return normalizedInput;
@@ -309,7 +346,10 @@ export async function handleOpenAI(
     data: embeddings.map((embedding, index) => ({
       object: "embedding",
       index,
-      embedding,
+      embedding:
+        encodingFormat === "base64"
+          ? encodeEmbeddingToBase64(embedding)
+          : embedding,
     })),
     model: modelResult.responseModel,
     usage: {
