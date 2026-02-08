@@ -16,11 +16,15 @@ npm run dev
 npm run deploy
 ```
 
-## CI Deploy (GitHub Actions)
+## CI/CD (GitHub Actions)
 
-- Tao Cloudflare user "github-bot" va tao API Token tu user nay de Dashboard hien deployer la "github-bot".
-- Luu GitHub Actions secrets: CF_API_TOKEN va CF_ACCOUNT_ID.
-- Workflow deploy: .github/workflows/deploy.yml.
+- Workflow: `.github/workflows/deploy.yml`
+- `pull_request -> main`: chạy CI (`npm ci`, `npm test`)
+- `push -> main`: chạy CI rồi auto deploy Worker
+- `workflow_dispatch`: cho phép manual deploy từ GitHub UI
+- Cần set secrets:
+  - `CF_API_TOKEN`
+  - `CF_ACCOUNT_ID`
 
 ## MCP (Streamable HTTP)
 
@@ -78,6 +82,7 @@ Call tool:
   - `POST /v1/embeddings`
 - Alias route cũng hỗ trợ: `/openai/v1/models`, `/openai/v1/embeddings`
 - Nếu đặt `OPENAI_API_KEY`, request phải gửi `Authorization: Bearer <key>`.
+- `encoding_format` hỗ trợ: `float` (mặc định) và `base64`.
 
 Ví dụ gọi embedding:
 
